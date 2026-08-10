@@ -1,543 +1,270 @@
-"use client";
+"use client"
 
-import React, { useMemo, useState } from "react";
-import { Search, X, Lock, FileText } from "lucide-react";
+import { useState } from "react"
 
-// ------------------------------------------------------------------
-// Fake Data
-// ------------------------------------------------------------------
+type Criticality = "Critical" | "Quality" | "Finish Readiness"
+type DeficiencyState = "Ready for Review" | "Open" | "Closed" | "Info Requested" | "Rework Requested"
 
-type Status = "DRAFT" | "SUBMITTED" | "LOCKED";
-type Tab = "ALL" | Status;
-
-type Deficiency = {
-  title: string;
-  meta: string;
-  severity: "CRITICAL" | "FINISH READINESS";
-  state: "READY FOR REVIEW" | "REWORK REQUESTED";
-};
-
-type Inspection = {
-  id: string;
-  job: string;
-  template: string;
-  version: string;
-  phase: string;
-  inspector: string;
-  date: string;
-  rightOn: number;
-  totalItems: number;
-  defCount: number;
-  photos: number;
-  status: Status;
-  deficiencies: Deficiency[];
-};
-
-const inspections: Inspection[] = [
-  {
-    id: "INS-20260726-01",
-    job: "218 CEDAR RIDGE LN",
-    template: "WEATHER BARRIER — RIGHT-ON",
-    version: "V4",
-    phase: "WEATHER BARRIER",
-    inspector: "PRIYA RAMAN",
-    date: "2026-07-26",
-    rightOn: 31,
-    totalItems: 34,
-    defCount: 3,
-    photos: 48,
-    status: "LOCKED",
-    deficiencies: [
-      {
-        title: 'WRB LAPS SHINGLED A MINIMUM OF 6" HORIZONTALLY',
-        meta: "DEF-4411 · IRONLINE EXTERIORS",
-        severity: "CRITICAL",
-        state: "READY FOR REVIEW",
-      },
-      {
-        title: "HANGERS FULLY NAILED PER SCHEDULE",
-        meta: "DEF-4390 · BARRETT FRAMING CO.",
-        severity: "FINISH READINESS",
-        state: "REWORK REQUESTED",
-      },
-    ],
-  },
-  {
-    id: "INS-20260727-02",
-    job: "4402 MARLOW ST",
-    template: "SHOWER WATERPROOFING",
-    version: "V2",
-    phase: "WATERPROOFING",
-    inspector: "MONI ROY",
-    date: "2026-07-27",
-    rightOn: 17,
-    totalItems: 22,
-    defCount: 5,
-    photos: 31,
-    status: "SUBMITTED",
-    deficiencies: [
-      {
-        title: "PAN LINER OVERLAP MEETS MIN. SPEC",
-        meta: "DEF-4408 · COASTAL WATERPROOFING",
-        severity: "CRITICAL",
-        state: "READY FOR REVIEW",
-      },
-    ],
-  },
-  {
-    id: "INS-20260728-03",
-    job: "312 WEXLER COURT",
-    template: "FRAMING QUALITY WALK",
-    version: "V1",
-    phase: "ROUGH-IN",
-    inspector: "PRIYA RAMAN",
-    date: "2026-07-28",
-    rightOn: 12,
-    totalItems: 18,
-    defCount: 1,
-    photos: 14,
-    status: "DRAFT",
-    deficiencies: [
-      {
-        title: "HANGERS FULLY NAILED PER SCHEDULE",
-        meta: "DEF-4390 · BARRETT FRAMING CO.",
-        severity: "FINISH READINESS",
-        state: "REWORK REQUESTED",
-      },
-    ],
-  },
-  {
-    id: "INS-20260724-04",
-    job: "312 WEXLER COURT",
-    template: "WEATHER BARRIER — RIGHT-ON",
-    version: "V4",
-    phase: "WEATHER BARRIER",
-    inspector: "TASHA LINDGREN",
-    date: "2026-07-24",
-    rightOn: 30,
-    totalItems: 34,
-    defCount: 4,
-    photos: 57,
-    status: "LOCKED",
-    deficiencies: [
-      {
-        title: 'WRB LAPS SHINGLED A MINIMUM OF 6" HORIZONTALLY',
-        meta: "DEF-4411 · IRONLINE EXTERIORS",
-        severity: "CRITICAL",
-        state: "READY FOR REVIEW",
-      },
-    ],
-  },
-];
-
-const tabLabels: { key: Tab; label: string }[] = [
-  { key: "ALL", label: "ALL" },
-  { key: "DRAFT", label: "DRAFT" },
-  { key: "SUBMITTED", label: "SUBMITTED" },
-  { key: "LOCKED", label: "LOCKED" },
-];
-
-const statusStyles: Record<Status, string> = {
-  DRAFT: "bg-amber-50 text-amber-700 border border-amber-200",
-  SUBMITTED: "bg-sky-50 text-sky-600 border border-sky-200",
-  LOCKED: "bg-slate-900 text-white",
-};
-
-// ------------------------------------------------------------------
-// Reusable bits
-// ------------------------------------------------------------------
-
-function SummaryCard({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: string | number;
-  valueClass: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200/70 bg-white p-6 shadow-sm">
-      <span className="text-[11px] font-semibold tracking-wide text-slate-400">
-        {label}
-      </span>
-      <div className={`mt-2 text-3xl font-bold ${valueClass}`}>{value}</div>
-    </div>
-  );
+interface Deficiency {
+    id: string
+    code: string
+    address: string
+    title: string
+    vendor: string
+    phase: string
+    criticality: Criticality
+    dueDate: string
+    overdue: boolean
+    rework: number
+    state: DeficiencyState
 }
 
-function StatusBadge({ status }: { status: Status }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-bold tracking-wide ${statusStyles[status]}`}
-    >
-      {status === "LOCKED" && <Lock className="h-3 w-3" />}
-      {status}
-    </span>
-  );
+const DEFICIENCIES: Deficiency[] = [
+    {
+        id: "def-4411",
+        code: "DEF-4411",
+        address: "218 Cedar Ridge Ln",
+        title: 'WRB laps shingled a minimum of 6" horizontally',
+        vendor: "Ironline Exteriors",
+        phase: "Weather Barrier",
+        criticality: "Critical",
+        dueDate: "2026-07-30",
+        overdue: false,
+        rework: 1,
+        state: "Ready for Review",
+    },
+    {
+        id: "def-4408",
+        code: "DEF-4408",
+        address: "4402 Marlow St",
+        title: "Hydroblok pan seams banded and sealed",
+        vendor: "Coastal Waterproofing",
+        phase: "Waterproofing",
+        criticality: "Critical",
+        dueDate: "2026-07-25",
+        overdue: true,
+        rework: 0,
+        state: "Open",
+    },
+    {
+        id: "def-4399",
+        code: "DEF-4399",
+        address: "312 Wexler Court",
+        title: "Seam tape fully rolled with no fish-mouths",
+        vendor: "Ironline Exteriors",
+        phase: "Weather Barrier",
+        criticality: "Quality",
+        dueDate: "2026-07-18",
+        overdue: false,
+        rework: 0,
+        state: "Closed",
+    },
+    {
+        id: "def-4415",
+        code: "DEF-4415",
+        address: "4402 Marlow St",
+        title: "Sill pan flashing installed with back dam",
+        vendor: "Summit Window & Door",
+        phase: "Waterproofing",
+        criticality: "Critical",
+        dueDate: "2026-08-01",
+        overdue: false,
+        rework: 0,
+        state: "Info Requested",
+    },
+    {
+        id: "def-4390",
+        code: "DEF-4390",
+        address: "218 Cedar Ridge Ln",
+        title: "Hangers fully nailed per schedule",
+        vendor: "Barrett Framing Co.",
+        phase: "Framing",
+        criticality: "Finish Readiness",
+        dueDate: "2026-07-26",
+        overdue: true,
+        rework: 2,
+        state: "Rework Requested",
+    },
+]
+
+type TabId = "all" | "ready" | "open" | "overdue" | "rework" | "closed"
+
+const TABS: { id: TabId; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "ready", label: "Ready for Review" },
+    { id: "open", label: "Open" },
+    { id: "overdue", label: "Overdue" },
+    { id: "rework", label: "Rework" },
+    { id: "closed", label: "Closed" },
+]
+
+const CRITICALITY_STYLES: Record<Criticality, string> = {
+    Critical: "border-[#FCA5A5] bg-[#FEE2E2] text-[#B91C1C]",
+    Quality: "border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]",
+    "Finish Readiness": "border-[#93C5FD] bg-[#DBEAFE] text-[#1D4ED8]",
 }
 
-function InspectionRow({
-  inspection,
-  onOpen,
-}: {
-  inspection: Inspection;
-  onOpen: () => void;
-}) {
-  return (
-    <tr className="border-b border-slate-100 last:border-0">
-      <td className="px-6 py-5">
-        <div className="text-[11px] font-semibold tracking-wide text-slate-500">
-          {inspection.id}
-        </div>
-        <div className="mt-0.5 text-[13px] font-bold text-slate-900">
-          {inspection.job}
-        </div>
-      </td>
-      <td className="py-5 pr-4">
-        <span className="text-[12px] font-bold text-slate-700">
-          {inspection.template}
+const STATE_STYLES: Record<DeficiencyState, string> = {
+    "Ready for Review": "border-[#93C5FD] bg-[#DBEAFE] text-[#1D4ED8]",
+    Open: "border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]",
+    Closed: "border-[#86EFAC] bg-[#DCFCE7] text-[#15803D]",
+    "Info Requested": "border-[#C4B5FD] bg-[#EDE9FE] text-[#6D28D9]",
+    "Rework Requested": "border-[#FCA5A5] bg-[#FEE2E2] text-[#B91C1C]",
+}
+
+function Badge({ label, className }: { label: string; className: string }) {
+    return (
+        <span className={`inline-block rounded border px-2.5 py-1 font-bebas text-[10px] uppercase tracking-wider ${className}`}>
+            {label}
         </span>
-        <span className="ml-1 text-[11px] font-semibold text-slate-400">
-          · {inspection.version}
-        </span>
-      </td>
-      <td className="py-5 pr-4 text-[11px] font-bold tracking-wide text-slate-700">
-        {inspection.phase}
-      </td>
-      <td className="py-5 pr-4 text-[12px] font-bold text-slate-700">
-        {inspection.inspector}
-      </td>
-      <td className="py-5 pr-4 text-[12px] font-semibold text-slate-500">
-        {inspection.date}
-      </td>
-      <td className="py-5 pr-4 text-[12px] font-bold text-slate-800">
-        {inspection.rightOn}/{inspection.totalItems} RIGHT-ON ·{" "}
-        {inspection.defCount} DEF
-      </td>
-      <td className="py-5 pr-4">
-        <StatusBadge status={inspection.status} />
-      </td>
-      <td className="py-5 pr-6">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="cursor-pointer text-[11px] font-bold tracking-wide text-slate-800 hover:text-slate-950"
-        >
-          OPEN
-        </button>
-      </td>
-    </tr>
-  );
+    )
 }
 
-// ------------------------------------------------------------------
-// Detail modal
-// ------------------------------------------------------------------
-
-function InspectionModal({
-  inspection,
-  onClose,
-}: {
-  inspection: Inspection;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
-          <div>
-            <div className="text-[15px] font-bold text-slate-900">
-              {inspection.id}
-            </div>
-            <div className="mt-0.5 text-[11px] font-semibold tracking-wide text-slate-400">
-              {inspection.job} · {inspection.template} {inspection.version} ·{" "}
-              {inspection.inspector}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
+function StatCard({ label, value, valueClassName }: { label: string; value: number; valueClassName: string }) {
+    return (
+        <div className="rounded-2xl border border-[#00000014] bg-white p-4 shadow-sm sm:p-5">
+            <p className="font-bebas text-xs uppercase tracking-wider text-[#00000066]">{label}</p>
+            <p className={`mt-1 font-bebas text-2xl font-semibold ${valueClassName}`}>{value}</p>
         </div>
-
-        <div className="px-6 py-5">
-          {/* Read-only banner */}
-          <div className="flex items-start gap-3 rounded-xl bg-[#0b1224] px-5 py-4">
-            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-            <p className="text-[11px] font-medium leading-relaxed tracking-wide text-slate-300">
-              READ-ONLY RECORD. TEMPLATE {inspection.version} IS PRESERVED
-              EXACTLY AS USED AT CAPTURE TIME. CORRECTIONS AND ADMINISTRATIVE
-              AMENDMENTS ARE APPENDED, NEVER OVERWRITTEN.
-            </p>
-          </div>
-
-          {/* Stat grid */}
-          <div className="mt-5 grid grid-cols-4 gap-3">
-            <div className="rounded-lg border border-slate-200 bg-[#f7f5f1] p-4">
-              <div className="text-[10px] font-semibold tracking-wide text-slate-400">
-                ITEMS
-              </div>
-              <div className="mt-1 text-xl font-bold text-slate-900">
-                {inspection.totalItems}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-[#f7f5f1] p-4">
-              <div className="text-[10px] font-semibold tracking-wide text-slate-400">
-                RIGHT-ON
-              </div>
-              <div className="mt-1 text-xl font-bold text-emerald-600">
-                {inspection.rightOn}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-[#f7f5f1] p-4">
-              <div className="text-[10px] font-semibold tracking-wide text-slate-400">
-                DEFICIENCIES
-              </div>
-              <div className="mt-1 text-xl font-bold text-red-500">
-                {inspection.defCount}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-[#f7f5f1] p-4">
-              <div className="text-[10px] font-semibold tracking-wide text-slate-400">
-                PHOTOS
-              </div>
-              <div className="mt-1 text-xl font-bold text-slate-900">
-                {inspection.photos}
-              </div>
-            </div>
-          </div>
-
-          {/* Deficiencies */}
-          <div className="mt-6">
-            <div className="text-[11px] font-bold tracking-widest text-slate-800">
-              DEFICIENCIES RAISED
-            </div>
-            <div className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
-              {inspection.deficiencies.map((d, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 px-4 py-4"
-                >
-                  <div>
-                    <div className="text-[12px] font-bold text-slate-900">
-                      {d.title}
-                    </div>
-                    <div className="mt-0.5 text-[10px] font-semibold tracking-wide text-slate-400">
-                      {d.meta}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={`rounded px-2.5 py-1 text-[10px] font-bold tracking-wide ${
-                        d.severity === "CRITICAL"
-                          ? "bg-rose-50 text-rose-500 border border-rose-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      {d.severity}
-                    </span>
-                    <span className="rounded bg-slate-100 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-600">
-                      {d.state}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Evidence */}
-          <div className="mt-6">
-            <div className="text-[11px] font-bold tracking-widest text-slate-800">
-              EVIDENCE
-            </div>
-            <div className="mt-3 grid grid-cols-5 gap-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex h-20 items-center justify-center rounded-lg bg-[#f0ece2] text-[10px] font-semibold tracking-wide text-slate-400"
-                >
-                  PHOTO
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-[11px] font-bold tracking-wide text-slate-800 hover:bg-slate-50 transition-colors"
-          >
-            CLOSE
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-[11px] font-bold tracking-wide text-slate-900 hover:bg-amber-600 transition-colors"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            GENERATE PDF
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+    )
 }
 
-// ------------------------------------------------------------------
-// Main Page
-// ------------------------------------------------------------------
+function matchesTab(deficiency: Deficiency, tab: TabId): boolean {
+    if (tab === "all") return true
+    if (tab === "ready") return deficiency.state === "Ready for Review"
+    if (tab === "open") return deficiency.state === "Open"
+    if (tab === "overdue") return deficiency.overdue
+    if (tab === "rework") return deficiency.rework > 0
+    if (tab === "closed") return deficiency.state === "Closed"
+    return true
+}
 
-export default function InspectionsPage() {
-  const [tab, setTab] = useState<Tab>("ALL");
-  const [search, setSearch] = useState("");
-  const [openInspection, setOpenInspection] = useState<Inspection | null>(
-    null
-  );
+export default function DeficiencyOversightPage() {
+    const [tab, setTab] = useState<TabId>("all")
+    const [query, setQuery] = useState("")
 
-  const counts = useMemo(
-    () => ({
-      DRAFT: inspections.filter((i) => i.status === "DRAFT").length,
-      SUBMITTED: inspections.filter((i) => i.status === "SUBMITTED").length,
-      LOCKED: inspections.filter((i) => i.status === "LOCKED").length,
-      photos: inspections.reduce((sum, i) => sum + i.photos, 0),
-    }),
-    []
-  );
+    const openCount = DEFICIENCIES.filter((d) => d.state === "Open").length
+    const overdueCount = DEFICIENCIES.filter((d) => d.overdue).length
+    const readyCount = DEFICIENCIES.filter((d) => d.state === "Ready for Review").length
+    const closedCount = DEFICIENCIES.filter((d) => d.state === "Closed").length
 
-  const visible = inspections.filter(
-    (i) =>
-      (tab === "ALL" || i.status === tab) &&
-      (search.trim() === "" ||
-        i.id.toLowerCase().includes(search.toLowerCase()) ||
-        i.job.toLowerCase().includes(search.toLowerCase()) ||
-        i.inspector.toLowerCase().includes(search.toLowerCase()))
-  );
+    const filtered = DEFICIENCIES.filter((d) => {
+        if (!matchesTab(d, tab)) return false
+        const haystack = `${d.title} ${d.code} ${d.address} ${d.vendor} ${d.phase}`.toLowerCase()
+        return haystack.includes(query.toLowerCase())
+    })
 
-  return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1620px] space-y-6">
-        {/* Summary cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard
-            label="DRAFTS"
-            value={counts.DRAFT}
-            valueClass="text-slate-900"
-          />
-          <SummaryCard
-            label="SUBMITTED"
-            value={counts.SUBMITTED}
-            valueClass="text-amber-500"
-          />
-          <SummaryCard
-            label="LOCKED RECORDS"
-            value={counts.LOCKED}
-            valueClass="text-slate-900"
-          />
-          <SummaryCard
-            label="PHOTOS CAPTURED"
-            value={counts.photos}
-            valueClass="text-emerald-600"
-          />
+    return (
+        <div className="min-h-screen bg-[#F7F4EF] text-[#111111] ">
+            <div className=" space-y-6">
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <StatCard label="Open" value={openCount} valueClassName="text-[#B8860B]" />
+                    <StatCard label="Overdue" value={overdueCount} valueClassName="text-[#D64545]" />
+                    <StatCard label="Ready for Review" value={readyCount} valueClassName="text-[#111111]" />
+                    <StatCard label="Closed" value={closedCount} valueClassName="text-[#15803D]" />
+                </div>
+
+                <div className="flex items-center gap-6 overflow-x-auto border-b border-[#00000014]">
+                    {TABS.map((t) => {
+                        const isActive = t.id === tab
+                        return (
+                            <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTab(t.id)}
+                                className={`relative shrink-0 whitespace-nowrap pb-3 font-bebas text-xs uppercase tracking-wider transition-colors sm:text-sm ${
+                                    isActive ? "text-[#111111]" : "text-[#00000066] hover:text-[#111111]"
+                                }`}
+                            >
+                                {t.label}
+                                {isActive && <span className="absolute -bottom-px left-0 h-0.5 w-full bg-[#D4A017]" />}
+                            </button>
+                        )
+                    })}
+                </div>
+
+                <div className="rounded-2xl border border-[#00000014] bg-white p-4 shadow-sm sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search deficiencies"
+                            className="w-full flex-1 rounded-md border border-[#00000022] bg-white px-4 py-2.5 font-bebas text-xs uppercase tracking-wider text-[#111111] outline-none placeholder:text-[#00000066] focus:border-[#B8860B] focus:ring-2 focus:ring-[#B8860B33] sm:text-sm"
+                        />
+                        <div className="h-11 w-full rounded-md border border-[#00000022] bg-white sm:w-48" />
+                        <div className="h-11 w-full rounded-md border border-[#00000022] bg-white sm:w-48" />
+                    </div>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-[#00000014] bg-white shadow-sm">
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-240 border-collapse text-left">
+                            <thead>
+                                <tr className="border-b border-[#00000010]">
+                                    {["Deficiency", "Vendor", "Phase", "Criticality", "Due", "Rework", "State", ""].map(
+                                        (col) => (
+                                            <th
+                                                key={col}
+                                                className="whitespace-nowrap px-6 py-3 font-bebas text-[10px] font-medium uppercase tracking-wider text-[#00000066]"
+                                            >
+                                                {col}
+                                            </th>
+                                        )
+                                    )}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map((d) => (
+                                    <tr key={d.id} className="border-b border-[#00000010] last:border-0">
+                                        <td className="px-6 py-4">
+                                            <p className="font-bebas font-medium text-sm leading-5 uppercase text-[#0B1120]">
+                                                {d.title}
+                                            </p>
+                                            <p className="mt-1 font-bebas font-medium text-xs leading-4 uppercase tracking-wider text-[#4A5875]">
+                                                {d.code} · {d.address}
+                                            </p>
+                                        </td>
+                                        <td className="px-6 py-4 font-bebas text-sm text-[#111111]">{d.vendor}</td>
+                                        <td className="px-6 py-4 font-bebas text-sm text-[#111111]">{d.phase}</td>
+                                        <td className="px-6 py-4">
+                                            <Badge label={d.criticality} className={CRITICALITY_STYLES[d.criticality]} />
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className={`font-bebas text-sm ${d.overdue ? "text-[#D64545]" : "text-[#111111]"}`}>
+                                                {d.dueDate}
+                                                {d.overdue && " · Overdue"}
+                                            </p>
+                                        </td>
+                                        <td className="px-6 py-4 font-bebas text-sm text-[#111111]">{d.rework}</td>
+                                        <td className="px-6 py-4">
+                                            <Badge label={d.state} className={STATE_STYLES[d.state]} />
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                type="button"
+                                                className="font-bebas text-xs uppercase tracking-wider text-[#111111] hover:text-[#C79417]"
+                                            >
+                                                Review
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+
+                                {filtered.length === 0 && (
+                                    <tr>
+                                        <td colSpan={8} className="px-6 py-10 text-center">
+                                            <p className="font-bebas text-sm uppercase tracking-wider text-[#00000066]">
+                                                No deficiencies match this view.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-8 border-b border-slate-200">
-          {tabLabels.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`cursor-pointer pb-3 text-xs font-bold tracking-widest transition-colors ${
-                tab === t.key
-                  ? "border-b-2 border-amber-500 text-slate-900"
-                  : "text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search bar */}
-        <div className="flex flex-col gap-4 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="SEARCH BY INSPECTION ID, JOB, OR INSPECTOR"
-              className="w-full rounded-lg border border-slate-200 bg-white py-3 pl-11 pr-4 text-[11px] font-semibold tracking-wide text-slate-500 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-          <div className="w-full rounded-lg border border-slate-200 bg-white sm:w-64" />
-        </div>
-
-        {/* Inspections table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200/70 bg-white shadow-sm">
-          <table className="w-full min-w-[1200px] border-collapse">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="px-6 py-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  INSPECTION
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  TEMPLATE
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  PHASE
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  INSPECTOR
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  DATE
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  RESULT
-                </th>
-                <th className="py-4 pr-4 text-left text-[10px] font-semibold tracking-widest text-slate-400">
-                  STATUS
-                </th>
-                <th className="py-4 pr-6 text-left text-[10px] font-semibold tracking-widest text-slate-400" />
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((inspection) => (
-                <InspectionRow
-                  key={inspection.id}
-                  inspection={inspection}
-                  onOpen={() => setOpenInspection(inspection)}
-                />
-              ))}
-              {visible.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-6 py-10 text-center text-[12px] font-semibold tracking-wide text-slate-400"
-                  >
-                    NO INSPECTIONS MATCH THIS FILTER
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {openInspection && (
-        <InspectionModal
-          inspection={openInspection}
-          onClose={() => setOpenInspection(null)}
-        />
-      )}
-    </div>
-  );
+    )
 }
